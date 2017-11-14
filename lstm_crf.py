@@ -103,7 +103,7 @@ class Neural_CRF(N.Module):
         # (1, num_words, n_tags). Note that n_tags here also includes the start of end symbols
         return crf_emissions
 
-    def infer_forward(self, crf_emissions, label_ids):
+    def infer_forward(self, crf_emissions, label_ids, label_identifier):
         """
         Returns the log likelihood associated with the gold label sequence. Note that this requires the execution of the
         forward algorithm which incurs a performance penalty linear in the length of the sentence and quadratic in the
@@ -114,6 +114,8 @@ class Neural_CRF(N.Module):
         word in the sentence. It should have shape (1, num_words, n_tags)
         :return: the crf loss corresponding to the log probabilitiy of the proposed label sequence for the given input
         """
+        if len(label_ids) == crf_emissions.size(1)+1:
+            label_ids.append(label_identifier.vocab_size+1)
         assert len(label_ids) == crf_emissions.size(1)+2, "Number of labels should be the number of words in " \
                                                         "the sentence + 2"
 
