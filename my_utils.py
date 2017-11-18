@@ -84,14 +84,14 @@ class Instance():
         self.wfeats = A.Variable(torch.from_numpy(np.array(self.wfeats))).unsqueeze(0)
 
     def get_output_conll(self, pred_labels_ids, tag_identifier):
-        output_labels = pred_labels_ids[1:-1]
+        pred_output_labels = pred_labels_ids[1:-1]
         output_lines = []
         for iid, instance_line in enumerate(self.instance_lines):
             instance_line = instance_line.strip(' \t\r\n')
             if len(instance_line)==0:
                 continue
             output_line = instance_line.split()
-            output_line[-1] = tag_identifier.get_word(output_labels[iid])
+            output_line[-1] = tag_identifier.get_word(pred_output_labels[iid])
             output_lines.append(output_line)
         return "\n".join([" ".join(line) for line in output_lines])
 

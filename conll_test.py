@@ -15,11 +15,11 @@ parser.add_argument("-te", "--test_file", type=str,
 parser.add_argument("-e", "--embedding_file", type=str,
                     default="/home/akashb/Desktop/Blog projects/common-resources/word_vecs/glove.6B.100d.txt")
 parser.add_argument("-o", "--output_file", type=str,
-                    default="./annotations/output.conll")
+                    default="./annotations/output_resumed_again.conll")
 parser.add_argument("-m", "--model_name", type=str,
-                    default="./models/ner_lstm_crf_resumed.mod")
+                    default="./models/ner_lstm_crf_resumed_again.mod")
 parser.add_argument("-p", "--pretrained_model_name", type=str,
-                    default="./models/ner_lstm_crf.mod.2")
+                    default="./models/ner_lstm_crf_resumed.mod.4")
 parser.add_argument("--use_cuda", dest="use_cuda", action='store_true')
 
 args = parser.parse_args()
@@ -46,7 +46,8 @@ word_identifier = torch.load(args.pretrained_model_name+"_word_identifier") if o
 
 train_instances, dev_instances, test_instances, word_embedder, word_identifier, tag_identifier, char_identifier = \
     get_ner_samples(train_file, dev_file, test_file, embedding_file, tag_identifier=tag_identifier,
-                    word_identifier=word_identifier, char_identifier=char_identifier, use_cuda=use_cuda, use_pretrained=not (None in [tag_identifier, char_identifier, word_identifier]))
+                    word_identifier=word_identifier, char_identifier=char_identifier, use_cuda=use_cuda,
+                    use_pretrained=not (None in [tag_identifier, char_identifier, word_identifier]))
 
 torch.save(tag_identifier, args.model_name + "_tag_identifier")
 torch.save(word_identifier, args.model_name + "_word_identifier")
@@ -90,7 +91,7 @@ sample_ids = range(len(train_instances))
 for epoch in range(n_epochs):
     batch_loss = A.Variable(torch.zeros(1))
     epoch_loss = 0.0
-    # np.random.shuffle(sample_ids) # Uncomment this eventually!
+    np.random.shuffle(sample_ids) # Uncomment this eventually!
     for order_id, sid in enumerate(sample_ids):
         train_instance = train_instances[sid]
         crf_loss = neural_crf.infer_forward(neural_crf(wids=train_instance.wids, wfeats=train_instance.wfeats, cids=train_instance.cids,
