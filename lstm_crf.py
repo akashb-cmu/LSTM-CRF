@@ -3,6 +3,34 @@ rnd_seed = 1
 import torch.autograd as A, torch.nn as N, torch.nn.functional as F
 import numpy as np
 
+try:
+    from line_profiler import LineProfiler
+
+    def do_profile(follow=[]):
+        def inner(func):
+            def profiled_func(*args, **kwargs):
+                try:
+                    profiler = LineProfiler()
+                    profiler.add_function(func)
+                    for f in follow:
+                        profiler.add_function(f)
+                    profiler.enable_by_count()
+                    return func(*args, **kwargs)
+                finally:
+                    profiler.print_stats()
+            return profiled_func
+        return inner
+
+except ImportError:
+    def do_profile(follow=[]):
+        "Helpful if you accidentally leave in production!"
+        def inner(func):
+            def nothing(*args, **kwargs):
+                return func(*args, **kwargs)
+            return nothing
+        return inner
+
+
 if not use_cuda:
     import torch
 else:
@@ -64,6 +92,7 @@ class Neural_CRF(N.Module):
         max_vec = max_elt.expand(log_sum_exp_elements.size()[-1])
         return max_elt + torch.log(torch.sum(torch.exp(log_sum_exp_elements-max_vec)))
 
+    @do_profile(follow=[])  # not following any functions recursively for now
     def forward(self, wids, wfeats, cids, cfeats):
         """
         Applies the forward pass which can be used while training or testing. It returns the CRF emission scores for
@@ -103,6 +132,7 @@ class Neural_CRF(N.Module):
         # (1, num_words, n_tags). Note that n_tags here also includes the start of end symbols
         return crf_emissions
 
+    # @do_profile(follow=[log_sum_exp]) # not following any functions recursively for now
     def infer_forward(self, crf_emissions, label_ids, label_identifier):
         """
         Returns the log likelihood associated with the gold label sequence. Note that this requires the execution of the

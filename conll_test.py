@@ -7,17 +7,19 @@ rnd_seed = 1
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-tr", "--train_file", type=str,
-                default="/home/akashb/Desktop/Blog projects/common-resources/conll_data/eng_data/eng.train.true.conll")
+                default="../ner_data/eng_data/eng.train.true.conll")
 parser.add_argument("-d", "--dev_file", type=str,
-                default="/home/akashb/Desktop/Blog projects/common-resources/conll_data/eng_data/eng.testa.true.conll")
+                default="../ner_data/eng_data/eng.testa.true.conll")
 parser.add_argument("-te", "--test_file", type=str,
-                    default="/home/akashb/Desktop/Blog projects/common-resources/conll_data/eng_data/eng.testb.true.conll")
+                    default="../ner_data/eng_data/eng.testb.true.conll")
+# parser.add_argument("-e", "--embedding_file", type=str,
+#                     default="../embeddings/glove.840B.300d.txt")
 parser.add_argument("-e", "--embedding_file", type=str,
-                    default="/home/akashb/Desktop/Blog projects/common-resources/word_vecs/glove.6B.100d.txt")
+                    default="../embeddings/glove_dummy.txt")
 parser.add_argument("-o", "--output_file", type=str,
                     default="./annotations/output_resumed_again.conll")
 parser.add_argument("-m", "--model_name", type=str,
-                    default="./models/ner_lstm_crf_resumed_again.mod")
+                    default="./models/trial_before_wsd.mod")
 parser.add_argument("-p", "--pretrained_model_name", type=str,
                     default="./models/ner_lstm_crf_resumed.mod.4")
 parser.add_argument("--use_cuda", dest="use_cuda", action='store_true')
@@ -73,8 +75,8 @@ n_tags = len(tag_identifier.wid2word)
 neural_crf = lstm_crf.Neural_CRF(wvocab_size=len(word_identifier.wid2word)+1, wlstm_layers=wlstm_layers,
                                  wlstm_dim=wlstm_dim,
                                  wfeat_dim=wfeat_dim,
-                                 wemb_dim=wemb_dim, cvocab_size=len(char_identifier.wid2word)+1, clstm_layers=clstm_dim,
-                                 clstm_dim=clstm_dim, cfeat_dim=cfeat_dim,
+                                 wemb_dim=wemb_dim, cvocab_size=len(char_identifier.wid2word)+1,
+                                 clstm_layers=clstm_layers, clstm_dim=clstm_dim, cfeat_dim=cfeat_dim,
                                  cemb_dim=cemb_dim, crf_ip_dim=crf_ip_dim, n_tags=n_tags)
 # Note: When specifying the vocabulary size, you must treat UNK as a word as well, even though it is masked by 0s. If
 # this is not done, you will end up errors whenever a word whose index corresponds the the last vocabulary item is used
@@ -99,7 +101,8 @@ for epoch in range(n_epochs):
                                                        label_identifier=tag_identifier)
         batch_loss += crf_loss
         epoch_loss += crf_loss.data[0]
-        print("Processed %d sentences\r"%(order_id)),
+        # print("Processed %d sentences\r"%(order_id)),
+        print("Processed %d sentences" % (order_id))
         if (order_id+1)%batch_size==0 or order_id==len(sample_ids)-1:
             neural_crf.zero_grad()
             batch_loss.backward()
