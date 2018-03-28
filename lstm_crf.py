@@ -47,30 +47,37 @@ torch.manual_seed(rnd_seed)
 
 class Neural_CRF(N.Module):
 
-    def __init__(self, wvocab_size, wlstm_layers, wlstm_dim, wfeat_dim, wemb_dim, cvocab_size, clstm_layers, clstm_dim, cfeat_dim,
-                 cemb_dim, crf_ip_dim, n_tags):
+    def __init__(self, wvocab_size, wlstm_layers, wlstm_dim, wfeat_dim, wemb_dim, cvocab_size, clstm_layers, clstm_dim,
+                 cfeat_dim, cemb_dim, crf_ip_dim, n_tags):
         super(Neural_CRF, self).__init__()
-        clstm_ip_dim = cfeat_dim + cemb_dim
-        wlstm_ip_dim = wfeat_dim + wemb_dim + 2*clstm_dim
+        self.wlstm_layers = wlstm_layers
+        self.clstm_layers = clstm_layers
+        self.wlstm_dim = wlstm_dim
+        self.clstm_dim = clstm_dim
+        self.wemb_dim = wemb_dim
+        self.cemb_dim = cemb_dim
+        self.clstm_ip_dim = cfeat_dim + cemb_dim
+        self.wlstm_ip_dim = wfeat_dim + wemb_dim + 2*self.clstm_dim
         self.n_tags_with_start_end = n_tags + 2
         self.wvocab_size = wvocab_size
         self.cvocab_size = cvocab_size
+        self.crf_ip_dim = crf_ip_dim
         self.NINF = -10000
         self.START=0
         self.END = n_tags+1
-        self.c_embedder = N.Embedding(num_embeddings=cvocab_size, embedding_dim=cemb_dim, padding_idx=0, max_norm=1.0
+        self.c_embedder = N.Embedding(num_embeddings=self.cvocab_size, embedding_dim=self.cemb_dim, padding_idx=0, max_norm=1.0
                                       # ,sparse=True
                                       )
-        self.w_embedder = N.Embedding(num_embeddings=wvocab_size, embedding_dim=wemb_dim, padding_idx=0, max_norm=1.0
+        self.w_embedder = N.Embedding(num_embeddings=self.wvocab_size, embedding_dim=self.wemb_dim, padding_idx=0, max_norm=1.0
                                       # ,sparse=True
                                       )
         # sparse determines whether sparse updates should be applied to the embedding matrix
-        self.clstm = N.LSTM(input_size=clstm_ip_dim, hidden_size=clstm_dim, num_layers=clstm_layers, batch_first=True,
+        self.clstm = N.LSTM(input_size=self.clstm_ip_dim, hidden_size=self.clstm_dim, num_layers=self.clstm_layers, batch_first=True,
                             bidirectional=True)
-        self.wlstm = N.LSTM(input_size=wlstm_ip_dim, hidden_size=wlstm_dim, num_layers=wlstm_layers, batch_first=True,
+        self.wlstm = N.LSTM(input_size=self.wlstm_ip_dim, hidden_size=self.wlstm_dim, num_layers=self.wlstm_layers, batch_first=True,
                             bidirectional=True)
-        self.pre_emitter = N.Linear(in_features=2*wlstm_dim, out_features=crf_ip_dim)
-        self.emitter = N.Linear(in_features=crf_ip_dim, out_features=n_tags)
+        self.pre_emitter = N.Linear(in_features=2*self.wlstm_dim, out_features=self.crf_ip_dim)
+        self.emitter = N.Linear(in_features=self.crf_ip_dim, out_features=n_tags)
         self.transition_scores = N.Linear(in_features=n_tags+2, out_features=n_tags+2, bias=False) # parameter matrix for
         # the CRF. Each parameter determines the compatibility between the corresponding two tags occurring next to each
         # other
@@ -92,7 +99,52 @@ class Neural_CRF(N.Module):
         max_vec = max_elt.expand(log_sum_exp_elements.size()[-1])
         return max_elt + torch.log(torch.sum(torch.exp(log_sum_exp_elements-max_vec)))
 
-    @do_profile(follow=[])  # not following any functions recursively for now
+    def pad(self, ip_list, tot_len):
+        ip_size = list(ip_list.size())
+        llen = ip_size[1]
+        if(llen==tot_len):
+            return ip_list
+        ip_size[1] = tot_len-llen
+        if(type(ip_list.data)==torch.LongTensor):
+            catvec = A.Variable(torch.from_numpy(np.zeros(ip_size, dtype=np.int64)))
+        else:
+            catvec = A.Variable(torch.from_numpy(np.zeros(ip_size, dtype=np.float32)))
+        retvec = torch.cat([ip_list, catvec], 1)
+        return retvec
+
+    def get_packed_char_seqs(self, cids, cfeats):
+        lens = [list(cid.size())[-1] for cid in cids]
+        max_len = max(lens)
+        ips = zip([self.pad(cids[i], max_len) for i in range(len(cids))],
+                  [self.pad(cfeats[i], max_len) for i in range(len(cfeats))],
+                  lens,
+                  range(len(cids))
+                  )
+        sorted_ips = sorted(ips, reverse=True, key=lambda x: x[2])
+        ips = torch.cat([ip[0] for ip in sorted_ips], 0)
+        c_embeddings = self.c_embedder(ips)
+        cfeats = torch.cat([ip[1] for ip in sorted_ips], 0)
+        clstm_ips = torch.cat([c_embeddings, cfeats], 2)
+        lens = [ip[2] for ip in sorted_ips]
+        orig_indices = [ip[3] for ip in sorted_ips]
+        packed_seq = N.utils.rnn.pack_padded_sequence(clstm_ips, lens, batch_first=True)
+        init_hiddens, init_contexts = self.make_hidden_context_states(self.clstm_layers, len(cids), self.clstm_dim)
+        return packed_seq, lens, orig_indices, init_hiddens, init_contexts
+
+    def make_hidden_context_states(self, num_layers, batch_size, hidden_dim, bidir=True):
+        init_hiddens = A.Variable(torch.zeros(num_layers * (2 if bidir else 1), batch_size, hidden_dim))
+        init_contexts = A.Variable(torch.zeros(num_layers * (2 if bidir else 1), batch_size, hidden_dim))
+        return (init_hiddens, init_contexts)
+
+    def unpack_char_seqs(self, packed_ips, orig_indices):
+        unpacked_seq, lens = N.utils.rnn.pad_packed_sequence(packed_ips, batch_first=True)
+        num_entries = list(unpacked_seq.size())[0]
+        vars = [None for i in range(num_entries)]
+        for i in range(num_entries):
+            vars[orig_indices[i]] = unpacked_seq[i][lens[i]-1].unsqueeze(0)
+        return torch.cat(vars, 0).unsqueeze(0)
+
+    # @do_profile(follow=[])  # not following any functions recursively for now
     def forward(self, wids, wfeats, cids, cfeats):
         """
         Applies the forward pass which can be used while training or testing. It returns the CRF emission scores for
@@ -109,20 +161,12 @@ class Neural_CRF(N.Module):
         wembs = self.w_embedder(wids) # This should now have dim (1, num_words, wemb_dim)
         if wfeats is not None:
             wembs = torch.cat([wembs, wfeats], 2) # wembs should now have dim (1, num_words, wemb_dim+wfeat_dim)
-
-        # now assembling the character embedding
-        cembs = []
-        for i in range(len(cids)):
-            clstm_ip = torch.cat([self.c_embedder(cids[i]), cfeats[i]], 2) # this should have dim (1, w_char_len,
-            # cemb_dim+cfeat_dim)
-            cemb, hn = self.clstm(clstm_ip) # cemb should have dim (1, w_char_len, clstm_dim*2)
-            # cemb = cemb.view(cemb.size(1), cemb.size(0), cemb.size(2))[:,-1,:].unsqueeze(0)
-            cemb = cemb[:, -1, :].unsqueeze(0) # cemb should now have dim (1, 1, clstm_dim*2)
-            cembs.append(cemb)
-
-        cembs = torch.cat(cembs, 1) # cembs should now have dim (1, num_words, clstm_dim*2)
+        packed_ips, lens, orig_indices, init_hiddens, init_contexts = self.get_packed_char_seqs(cids, cfeats)
+        cembs, (h, c) = self.clstm(packed_ips, (init_hiddens, init_contexts))
+        cembs = self.unpack_char_seqs(cembs, orig_indices) # cembs should now have dim (1, num_words, clstm_dim*2)
         wembs = torch.cat([cembs, wembs], 2) # wembs should now have dim (1, num_words, wemb_dim+wfeat_dim+2*clstm_hid)
-        token_reps, hn = self.wlstm(wembs)
+        token_reps, hn = self.wlstm(wembs, self.make_hidden_context_states(num_layers=self.wlstm_layers,
+                                                                            batch_size=1,hidden_dim=self.wlstm_dim))
         crf_emissions = self.emitter(
                             F.tanh(
                                 self.pre_emitter(token_reps.view(-1, token_reps.size()[-1]))
