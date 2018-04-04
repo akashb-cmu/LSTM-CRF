@@ -7,6 +7,7 @@ class Word_Embedder():
     def __init__(self, emb_file):
         self.wembs = {}
         self.wemb_dim = 0
+        skipped_embs = 0
         with open(emb_file, 'r', encoding='utf-8') as ipf:
             line_no = 0
             for line in ipf:
@@ -16,8 +17,12 @@ class Word_Embedder():
                 line_no+=1
                 line = line.split()
                 self.wemb_dim = len(line) - 1
-                self.wembs[line[0]] = np.array([float(dim) for dim in line[1:]], dtype=np.float32)
+                try:
+                    self.wembs[line[0]] = np.array([float(dim) for dim in line[1:]], dtype=np.float32)
+                except Exception as e:
+                    skipped_embs += 1
                 print("Read %d lines\r"%(line_no+1)),
+        print("Skipped %d embeddings"%(skipped_embs))
         print("Done reading all word embeddings")
 
     def get_emb(self, word):
@@ -102,9 +107,18 @@ def get_ner_samples(train_file, dev_file, test_file, emb_file, word_embedder=Non
     word_identifier = Identifer() if word_identifier is None else word_identifier
     tag_identifier = Identifer() if tag_identifier is None else tag_identifier
     char_identifier = Identifer() if char_identifier is None else char_identifier
-    train_instances = get_instances(train_file, word_embedder, word_identifier, tag_identifier, char_identifier, not use_pretrained, use_cuda)
-    dev_instances = get_instances(dev_file, word_embedder, word_identifier, tag_identifier, char_identifier, False, use_cuda)
-    test_instances = get_instances(test_file, word_embedder, word_identifier, tag_identifier, char_identifier, False, use_cuda)
+    if train_file!=None:
+        train_instances = get_instances(train_file, word_embedder, word_identifier, tag_identifier, char_identifier, not use_pretrained, use_cuda)
+    else:
+        train_instances = None
+    if dev_file!=None:
+        dev_instances = get_instances(dev_file, word_embedder, word_identifier, tag_identifier, char_identifier, False, use_cuda)
+    else:
+        dev_instances = None
+    if test_file!=None:
+        test_instances = get_instances(test_file, word_embedder, word_identifier, tag_identifier, char_identifier, False, use_cuda)
+    else:
+        test_instances = None
     return train_instances, dev_instances, test_instances, word_embedder, word_identifier, tag_identifier, char_identifier
 
 def get_instances(file_path, word_embedder, word_identifier, tag_identifier, char_identifier, is_train, use_cuda=False):

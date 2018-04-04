@@ -2,6 +2,7 @@ import lstm_crf
 import argparse
 from my_utils import *
 import os
+# from my_profiler import *
 use_cuda = False
 rnd_seed = 1
 
@@ -12,16 +13,16 @@ parser.add_argument("-d", "--dev_file", type=str,
                 default="../ner_data/eng_data/eng.testa.true.conll")
 parser.add_argument("-te", "--test_file", type=str,
                     default="../ner_data/eng_data/eng.testb.true.conll")
-# parser.add_argument("-e", "--embedding_file", type=str,
-#                     default="../embeddings/glove.840B.300d.txt")
 parser.add_argument("-e", "--embedding_file", type=str,
-                    default="../embeddings/glove_dummy.txt")
+                    default="../embeddings/glove.840B.300d.txt")
+# parser.add_argument("-e", "--embedding_file", type=str,
+#                     default="../embeddings/glove_dummy.txt")
 parser.add_argument("-o", "--output_file", type=str,
-                    default="./annotations/output_resumed_again.conll")
+                    default="./annotations/latest_ner_op.conll")
 parser.add_argument("-m", "--model_name", type=str,
-                    default="./models/trial_before_wsd.mod")
+                    default="./models/ner_before_wsd_batch2.mod")
 parser.add_argument("-p", "--pretrained_model_name", type=str,
-                    default="./models/ner_lstm_crf_resumed.mod.4")
+                    default="./models/ner_before_wsd.mod.11")
 parser.add_argument("--use_cuda", dest="use_cuda", action='store_true')
 
 args = parser.parse_args()
@@ -90,31 +91,43 @@ train_instances += dev_instances
 print("Starting training procedure!")
 
 sample_ids = range(len(train_instances))
-for epoch in range(n_epochs):
+
+def run_epoch(epoch_id):
     batch_loss = A.Variable(torch.zeros(1))
     epoch_loss = 0.0
-    np.random.shuffle(sample_ids) # Uncomment this eventually!
+    np.random.shuffle(sample_ids)  # Uncomment this eventually!
     for order_id, sid in enumerate(sample_ids):
         train_instance = train_instances[sid]
-        crf_loss = neural_crf.infer_forward(neural_crf(wids=train_instance.wids, wfeats=train_instance.wfeats, cids=train_instance.cids,
-                                                       cfeats=train_instance.cfeats), label_ids=train_instance.tags,
-                                                       label_identifier=tag_identifier)
-        batch_loss += crf_loss
-        epoch_loss += crf_loss.data[0]
-        # print("Processed %d sentences\r"%(order_id)),
-        print("Processed %d sentences" % (order_id))
-        if (order_id+1)%batch_size==0 or order_id==len(sample_ids)-1:
-            neural_crf.zero_grad()
-            batch_loss.backward()
-            optimizer.step()
-            # try:
-            #     print("\nTotal loss for batch within epoch %d = %f" % (epoch+1, batch_loss.data[0]))
-            # except:
-            #     print("\nCouldn't print loss!")
-            batch_loss = A.Variable(torch.zeros(1))
-    print("\nAverage loss for epoch %d = %f"%(epoch+1, epoch_loss/len(sample_ids)))
-    annotate_corpus(args.output_file + "." + str(epoch+1), test_instances, neural_crf, tag_identifier)
-    torch.save(neural_crf.state_dict(), args.model_name+"."+str(epoch+1))
+        epoch_loss = process_sample(batch_loss, epoch_loss, order_id, train_instance)
+        batch_loss = A.Variable(torch.zeros(1))
+    print("\nAverage loss for epoch %d = %f" % (epoch + 1, epoch_loss / len(sample_ids)))
+    # annotate_corpus(args.output_file + "." + str(epoch + 1), test_instances, neural_crf, tag_identifier)
+    torch.save(neural_crf.state_dict(), args.model_name + "." + str(epoch + 1))
+    print("Saved model after epoch " + str(epoch_id))
+
+# @do_profile(follow=[])
+def process_sample(batch_loss, epoch_loss, order_id, train_instance):
+    emissions = neural_crf(wids=train_instance.wids, wfeats=train_instance.wfeats, cids=train_instance.cids,
+               cfeats=train_instance.cfeats)
+    crf_loss = neural_crf.infer_forward(emissions, label_ids=train_instance.tags, label_identifier=tag_identifier)
+    batch_loss += crf_loss
+    epoch_loss += crf_loss.data[0]
+    # print("Processed %d sentences\r"%(order_id)),
+    print("Processed %d sentences" % (order_id))
+    if (order_id + 1) % batch_size == 0 or order_id == len(sample_ids) - 1:
+        neural_crf.zero_grad()
+        batch_loss.backward()
+        optimizer.step()
+        # try:
+        #     print("\nTotal loss for batch within epoch %d = %f" % (epoch+1, batch_loss.data[0]))
+        # except:
+        #     print("\nCouldn't print loss!")
+        batch_loss = A.Variable(torch.zeros(1))
+    return epoch_loss
+
+
+for epoch in range(n_epochs):
+    run_epoch(epoch)
 
 
 print("DONE!")

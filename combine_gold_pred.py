@@ -1,11 +1,11 @@
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("-tr", "--pred_test_file", type=str,
-                    default="/home/akashb/Desktop/Blog projects/LSTM_CRF/annotations/output_resumed_again.conll.3")
+                    default="./annotations/ner_before_wsd.mod_batch2.2.conll")
 parser.add_argument("-te", "--gold_test_file", type=str,
-                    default="/home/akashb/Desktop/Blog projects/common-resources/conll_data/eng_data/eng.testb.true.conll")
+                    default="../ner_data/eng_data/eng.testb.true.conll")
 parser.add_argument("-c", "--combined_file", type=str,
-                    default="/home/akashb/Desktop/Blog projects/LSTM_CRF/evaluation/output_resumed_again.conll.3.conll")
+                    default="./annotations/ner_before_wsd.mod_batch2.2_gold_combined.conll")
 
 
 args = parser.parse_args()
