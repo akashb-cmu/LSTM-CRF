@@ -1,6 +1,7 @@
 import numpy as np
 from codecs import open
 import torch.autograd as A
+import torch
 
 class Word_Embedder():
 
@@ -100,6 +101,11 @@ class Instance():
             output_lines.append(output_line)
         return "\n".join([" ".join(line) for line in output_lines])
 
+    def get_log_softmax_targets(self):
+        ret_target = A.Variable(torch.LongTensor([[[i-1] for i in self.tags[1:]]])) # 0 in the case of CRF is reserved
+        # for the start symbol, but this is not the case for a regular sequence labeler
+        return ret_target
+
 
 def get_ner_samples(train_file, dev_file, test_file, emb_file, word_embedder=None, word_identifier=None,
                     tag_identifier=None, char_identifier=None, use_pretrained=False, use_cuda=False):
@@ -145,7 +151,7 @@ def get_instances(file_path, word_embedder, word_identifier, tag_identifier, cha
 
 
 
-def annotate_corpus(output_file, test_instances, neural_crf, tag_identifier):
+def annotate_corpus_with_crf(output_file, test_instances, neural_crf, tag_identifier):
     with open(output_file, 'w+', encoding='utf-8') as opf:
         for test_instance in test_instances:
             pred_labels, final_tag_score = neural_crf.annotate(neural_crf(wids=test_instance.wids,
@@ -154,3 +160,11 @@ def annotate_corpus(output_file, test_instances, neural_crf, tag_identifier):
                                                                           cfeats=test_instance.cfeats))
             # compare label_ids=tags[sid] and pred_labels
             opf.write(test_instance.get_output_conll(pred_labels, tag_identifier) + "\n\n")
+
+def annotate_corpus_with_classifier(output_file, test_instances, classifier, tag_identifier):
+    with open(output_file, 'w+', encoding='utf-8') as opf:
+        for test_instance in test_instances:
+            pred_labels = classifier.annotate(wids=test_instance.wids, wfeats=test_instance.wfeats,
+                                              cids=test_instance.cids, cfeats=test_instance.cfeats)
+            # compare label_ids=tags[sid] and pred_labels
+            opf.write(test_instance.get_output_conll([""] + pred_labels + [""], tag_identifier) + "\n\n")

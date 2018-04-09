@@ -1,11 +1,11 @@
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("-tr", "--pred_test_file", type=str,
-                    default="./annotations/ner_before_wsd.mod_batch2.2.conll")
+                    default="./annotations/ner_before_wsd_batch2_with_attn_USE_THIS.mod.7.conll")
 parser.add_argument("-te", "--gold_test_file", type=str,
                     default="../ner_data/eng_data/eng.testb.true.conll")
 parser.add_argument("-c", "--combined_file", type=str,
-                    default="./annotations/ner_before_wsd.mod_batch2.2_gold_combined.conll")
+                    default="./annotations/ner_before_wsd_batch2_with_attn_USE_THIS.mod.7.combined.conll")
 
 
 args = parser.parse_args()

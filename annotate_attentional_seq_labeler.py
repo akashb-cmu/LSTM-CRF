@@ -1,4 +1,4 @@
-import lstm_crf
+import attentional_seq_labeler
 import argparse
 from my_utils import *
 import os
@@ -9,16 +9,18 @@ rnd_seed = 1
 parser = argparse.ArgumentParser()
 parser.add_argument("-te", "--test_file", type=str,
                     default="../ner_data/eng_data/eng.testb.true.conll")
+# parser.add_argument("-te", "--test_file", type=str,
+#                     default="../ner_data/eng_data/dummy_test.conll")
 parser.add_argument("-e", "--embedding_file", type=str,
                     default="../embeddings/glove.840B.300d.txt")
 # parser.add_argument("-e", "--embedding_file", type=str,
 #                     default="../embeddings/glove_dummy.txt")
 parser.add_argument("-o", "--output_file", type=str,
-                    default="./annotations/ner_before_wsd.mod_batch2.5.conll")
+                    default="./annotations/ner_before_wsd_batch2_with_attn_USE_THIS.mod.7.conll")
 parser.add_argument("-p", "--pretrained_model_name", type=str,
-                    default="./models/ner_before_wsd_batch2.mod.5")
+                    default="./models/ner_before_wsd_batch2_with_attn_USE_THIS.mod.7")
 parser.add_argument("-p2", "--identifer_path_prefix", type=str,
-                    default="./models/ner_before_wsd_batch2.mod")
+                    default="./models/ner_before_wsd_batch2_with_attn_USE_THIS.mod")
 parser.add_argument("--use_cuda", dest="use_cuda", action='store_true')
 
 args = parser.parse_args()
@@ -60,12 +62,12 @@ crf_ip_dim = 64
 
 n_tags = len(tag_identifier.wid2word)
 
-neural_crf = lstm_crf.Neural_CRF(wvocab_size=len(word_identifier.wid2word)+1, wlstm_layers=wlstm_layers,
+neural_crf = attentional_seq_labeler.Attentional_Seq_Labeler(wvocab_size=len(word_identifier.wid2word)+1, wlstm_layers=wlstm_layers,
                                  wlstm_dim=wlstm_dim,
                                  wfeat_dim=wfeat_dim,
                                  wemb_dim=wemb_dim, cvocab_size=len(char_identifier.wid2word)+1,
                                  clstm_layers=clstm_layers, clstm_dim=clstm_dim, cfeat_dim=cfeat_dim,
-                                 cemb_dim=cemb_dim, crf_ip_dim=crf_ip_dim, n_tags=n_tags)
+                                 cemb_dim=cemb_dim, n_tags=n_tags)
 # Note: When specifying the vocabulary size, you must treat UNK as a word as well, even though it is masked by 0s. If
 # this is not done, you will end up errors whenever a word whose index corresponds the the last vocabulary item is used
 if os.path.isfile(args.pretrained_model_name):
@@ -73,7 +75,7 @@ if os.path.isfile(args.pretrained_model_name):
 
 print("Starting annotation procedure!")
 
-annotate_corpus_with_crf(args.output_file, test_instances, neural_crf, tag_identifier)
+annotate_corpus_with_classifier(args.output_file, test_instances, neural_crf, tag_identifier)
 
 print("DONE!")
 
