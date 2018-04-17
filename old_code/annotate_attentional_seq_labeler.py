@@ -7,20 +7,21 @@ use_cuda = False
 rnd_seed = 1
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-te", "--test_file", type=str)
-parser.add_argument("-e", "--embedding_file", type=str)
-parser.add_argument("-o", "--output_file", type=str, default="./annotations/ner_before_wsd_batch2_with_attn_USE_THIS.mod.7.conll")
-parser.add_argument("-p", "--pretrained_model_name", type=str)
-parser.add_argument("-p2", "--identifer_path_prefix", type=str)
+parser.add_argument("-te", "--test_file", type=str,
+                    default="../ner_data/eng_data/eng.testb.true.conll")
+# parser.add_argument("-te", "--test_file", type=str,
+#                     default="../ner_data/eng_data/dummy_test.conll")
+parser.add_argument("-e", "--embedding_file", type=str,
+                    default="../embeddings/glove.840B.300d.txt")
+# parser.add_argument("-e", "--embedding_file", type=str,
+#                     default="../embeddings/glove_dummy.txt")
+parser.add_argument("-o", "--output_file", type=str,
+                    default="./annotations/ner_before_wsd_batch2_with_attn_USE_THIS.mod.7.conll")
+parser.add_argument("-p", "--pretrained_model_name", type=str,
+                    default="./models/ner_before_wsd_batch2_with_attn_USE_THIS.mod.7")
+parser.add_argument("-p2", "--identifer_path_prefix", type=str,
+                    default="./models/ner_before_wsd_batch2_with_attn_USE_THIS.mod")
 parser.add_argument("--use_cuda", dest="use_cuda", action='store_true')
-parser.add_argument("-w", "--wlstm_dim", type=int,
-                    default=100)
-parser.add_argument("-fwed", "--fintetuned_embedding_dim", type=int,
-                    default=32)
-parser.add_argument("-c", "--clstm_dim", type=int,
-                    default=100)
-parser.add_argument("-fced", "--fintetuned_cembedding_dim", type=int,
-                    default=16)
 
 args = parser.parse_args()
 if args.use_cuda:
@@ -50,12 +51,14 @@ wfeat_dim = word_embedder.wemb_dim
 cfeat_dim = 1
 batch_size = 1
 wlstm_layers = 1
-wlstm_dim = args.wlstm_dim
-wemb_dim = args.fintetuned_embedding_dim
+wlstm_dim = 100
+wemb_dim = 32
 
 clstm_layers = 1
-clstm_dim = args.clstm_dim
-cemb_dim = args.fintetuned_cembedding_dim
+clstm_dim = 16
+cemb_dim = 16
+
+crf_ip_dim = 64
 
 n_tags = len(tag_identifier.wid2word)
 
